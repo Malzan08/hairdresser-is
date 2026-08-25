@@ -1,0 +1,13 @@
+build/
+bin/
+*.exe
+*.dll
+*.obj
+*.o
+*.a
+*.user
+.vscode/
+.idea/
+task_files/
+TASK_SPEC.md
+*.log
