@@ -35,6 +35,11 @@ public:
     bool isOpen() const;
     QString lastError() const;
 
+    std::optional<User> authenticateUser(const QString &login, const QString &password);
+    QVector<Role> getUserRoles(int userId);
+    std::optional<User> getUserByLogin(const QString &login);
+    std::optional<User> getUserById(int userId);
+
 private:
     DBManager(QObject *parent = nullptr);
     ~DBManager() override;
