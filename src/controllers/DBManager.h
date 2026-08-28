@@ -42,6 +42,7 @@ public:
     bool checkLoginExists(const QString &login);
     bool registerUser(const QString &login, const QString &password, const QString &roleName, int *outUserId = nullptr);
     QVector<Role> getAllRoles();
+    bool updateUserPassword(int userId, const QString &newPassword);
 
 private:
     DBManager(QObject *parent = nullptr);

@@ -196,3 +196,16 @@ QVector<Role> DBManager::getAllRoles() {
     }
     return roles;
 }
+
+bool DBManager::updateUserPassword(int userId, const QString &newPassword) {
+    QSqlQuery query(m_db);
+    query.prepare("UPDATE users SET password_hash = :newPassword WHERE id_user = :userId");
+    query.bindValue(":newPassword", newPassword);
+    query.bindValue(":userId", userId);
+
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}
