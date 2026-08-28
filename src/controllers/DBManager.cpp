@@ -209,3 +209,52 @@ bool DBManager::updateUserPassword(int userId, const QString &newPassword) {
     }
     return true;
 }
+
+QVector<User> DBManager::getAllUsers() {
+    QVector<User> users;
+    QSqlQuery query(m_db);
+    if (query.exec("SELECT id_user, login, password_hash FROM users ORDER BY id_user ASC")) {
+        while (query.next()) {
+            User u;
+            u.idUser = query.value("id_user").toInt();
+            u.login = query.value("login").toString();
+            u.passwordHash = query.value("password_hash").toString();
+            u.roles = getUserRoles(u.idUser);
+            users.append(u);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return users;
+}
+
+bool DBManager::deleteUser(int userId) {
+    QSqlQuery query(m_db);
+    query.prepare("DELETE FROM users WHERE id_user = :userId");
+    query.bindValue(":userId", userId);
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+bool DBManager::setUserRole(int userId, int roleId) {
+    QSqlQuery delQuery(m_db);
+    delQuery.prepare("DELETE FROM user_roles WHERE id_user = :userId");
+    delQuery.bindValue(":userId", userId);
+    if (!delQuery.exec()) {
+        m_lastError = delQuery.lastError().text();
+        return false;
+    }
+
+    QSqlQuery insQuery(m_db);
+    insQuery.prepare("INSERT INTO user_roles (id_user, id_role) VALUES (:userId, :roleId)");
+    insQuery.bindValue(":userId", userId);
+    insQuery.bindValue(":roleId", roleId);
+    if (!insQuery.exec()) {
+        m_lastError = insQuery.lastError().text();
+        return false;
+    }
+    return true;
+}

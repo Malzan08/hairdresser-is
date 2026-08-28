@@ -43,6 +43,9 @@ public:
     bool registerUser(const QString &login, const QString &password, const QString &roleName, int *outUserId = nullptr);
     QVector<Role> getAllRoles();
     bool updateUserPassword(int userId, const QString &newPassword);
+    QVector<User> getAllUsers();
+    bool deleteUser(int userId);
+    bool setUserRole(int userId, int roleId);
 
 private:
     DBManager(QObject *parent = nullptr);
