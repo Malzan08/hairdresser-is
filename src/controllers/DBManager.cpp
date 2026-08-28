@@ -126,3 +126,73 @@ std::optional<User> DBManager::getUserById(int userId) {
     }
     return std::nullopt;
 }
+
+bool DBManager::checkLoginExists(const QString &login) {
+    QSqlQuery query(m_db);
+    query.prepare("SELECT 1 FROM users WHERE login = :login");
+    query.bindValue(":login", login);
+    if (query.exec()) {
+        return query.next();
+    }
+    m_lastError = query.lastError().text();
+    return false;
+}
+
+bool DBManager::registerUser(const QString &login, const QString &password, const QString &roleName, int *outUserId) {
+    if (checkLoginExists(login)) {
+        m_lastError = "Пользователь с таким логином уже существует.";
+        return false;
+    }
+
+    QSqlQuery roleQuery(m_db);
+    roleQuery.prepare("SELECT id_role FROM roles WHERE role_name = :roleName");
+    roleQuery.bindValue(":roleName", roleName);
+    if (!roleQuery.exec() || !roleQuery.next()) {
+        m_lastError = "Указанная роль не найдена в системе.";
+        return false;
+    }
+    int roleId = roleQuery.value("id_role").toInt();
+
+    QSqlQuery userQuery(m_db);
+    userQuery.prepare("INSERT INTO users (login, password_hash) VALUES (:login, :password) RETURNING id_user");
+    userQuery.bindValue(":login", login);
+    userQuery.bindValue(":password", password);
+
+    if (!userQuery.exec() || !userQuery.next()) {
+        m_lastError = userQuery.lastError().text();
+        return false;
+    }
+
+    int newUserId = userQuery.value(0).toInt();
+
+    QSqlQuery mapQuery(m_db);
+    mapQuery.prepare("INSERT INTO user_roles (id_user, id_role) VALUES (:userId, :roleId)");
+    mapQuery.bindValue(":userId", newUserId);
+    mapQuery.bindValue(":roleId", roleId);
+
+    if (!mapQuery.exec()) {
+        m_lastError = mapQuery.lastError().text();
+        return false;
+    }
+
+    if (outUserId) {
+        *outUserId = newUserId;
+    }
+    return true;
+}
+
+QVector<Role> DBManager::getAllRoles() {
+    QVector<Role> roles;
+    QSqlQuery query(m_db);
+    if (query.exec("SELECT id_role, role_name FROM roles ORDER BY id_role ASC")) {
+        while (query.next()) {
+            Role r;
+            r.idRole = query.value("id_role").toInt();
+            r.roleName = query.value("role_name").toString();
+            roles.append(r);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return roles;
+}

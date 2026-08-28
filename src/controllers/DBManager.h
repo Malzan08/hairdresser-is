@@ -39,6 +39,9 @@ public:
     QVector<Role> getUserRoles(int userId);
     std::optional<User> getUserByLogin(const QString &login);
     std::optional<User> getUserById(int userId);
+    bool checkLoginExists(const QString &login);
+    bool registerUser(const QString &login, const QString &password, const QString &roleName, int *outUserId = nullptr);
+    QVector<Role> getAllRoles();
 
 private:
     DBManager(QObject *parent = nullptr);
