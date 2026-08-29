@@ -53,6 +53,11 @@ public:
     bool updateBranch(int branchId, const QString &name, const QString &address, const QString &phone);
     bool deleteBranch(int branchId);
 
+    QVector<Employee> getAllEmployees();
+    QVector<Employee> getEmployeesByBranch(int branchId);
+    std::optional<Employee> getEmployeeByUserId(int userId);
+    std::optional<Employee> getEmployeeById(int employeeId);
+
 private:
     DBManager(QObject *parent = nullptr);
     ~DBManager() override;

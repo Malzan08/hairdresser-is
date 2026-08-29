@@ -334,3 +334,110 @@ bool DBManager::deleteBranch(int branchId) {
     }
     return true;
 }
+
+QVector<Employee> DBManager::getAllEmployees() {
+    QVector<Employee> employees;
+    QSqlQuery query(m_db);
+    if (query.exec("SELECT e.id_employee, e.id_user, e.id_branch, e.last_name, e.first_name, e.middle_name, "
+                   "e.phone, e.position, b.branch_name "
+                   "FROM employees e "
+                   "JOIN branches b ON e.id_branch = b.id_branch "
+                   "ORDER BY e.id_employee ASC")) {
+        while (query.next()) {
+            Employee emp;
+            emp.idEmployee = query.value("id_employee").toInt();
+            emp.idUser = query.value("id_user").toInt();
+            emp.idBranch = query.value("id_branch").toInt();
+            emp.lastName = query.value("last_name").toString();
+            emp.firstName = query.value("first_name").toString();
+            emp.middleName = query.value("middle_name").toString();
+            emp.phone = query.value("phone").toString();
+            emp.position = query.value("position").toString();
+            emp.branchName = query.value("branch_name").toString();
+            employees.append(emp);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return employees;
+}
+
+QVector<Employee> DBManager::getEmployeesByBranch(int branchId) {
+    QVector<Employee> employees;
+    QSqlQuery query(m_db);
+    query.prepare("SELECT e.id_employee, e.id_user, e.id_branch, e.last_name, e.first_name, e.middle_name, "
+                  "e.phone, e.position, b.branch_name "
+                  "FROM employees e "
+                  "JOIN branches b ON e.id_branch = b.id_branch "
+                  "WHERE e.id_branch = :branchId ORDER BY e.id_employee ASC");
+    query.bindValue(":branchId", branchId);
+
+    if (query.exec()) {
+        while (query.next()) {
+            Employee emp;
+            emp.idEmployee = query.value("id_employee").toInt();
+            emp.idUser = query.value("id_user").toInt();
+            emp.idBranch = query.value("id_branch").toInt();
+            emp.lastName = query.value("last_name").toString();
+            emp.firstName = query.value("first_name").toString();
+            emp.middleName = query.value("middle_name").toString();
+            emp.phone = query.value("phone").toString();
+            emp.position = query.value("position").toString();
+            emp.branchName = query.value("branch_name").toString();
+            employees.append(emp);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return employees;
+}
+
+std::optional<Employee> DBManager::getEmployeeByUserId(int userId) {
+    QSqlQuery query(m_db);
+    query.prepare("SELECT e.id_employee, e.id_user, e.id_branch, e.last_name, e.first_name, e.middle_name, "
+                  "e.phone, e.position, b.branch_name "
+                  "FROM employees e "
+                  "JOIN branches b ON e.id_branch = b.id_branch "
+                  "WHERE e.id_user = :userId");
+    query.bindValue(":userId", userId);
+
+    if (query.exec() && query.next()) {
+        Employee emp;
+        emp.idEmployee = query.value("id_employee").toInt();
+        emp.idUser = query.value("id_user").toInt();
+        emp.idBranch = query.value("id_branch").toInt();
+        emp.lastName = query.value("last_name").toString();
+        emp.firstName = query.value("first_name").toString();
+        emp.middleName = query.value("middle_name").toString();
+        emp.phone = query.value("phone").toString();
+        emp.position = query.value("position").toString();
+        emp.branchName = query.value("branch_name").toString();
+        return emp;
+    }
+    return std::nullopt;
+}
+
+std::optional<Employee> DBManager::getEmployeeById(int employeeId) {
+    QSqlQuery query(m_db);
+    query.prepare("SELECT e.id_employee, e.id_user, e.id_branch, e.last_name, e.first_name, e.middle_name, "
+                  "e.phone, e.position, b.branch_name "
+                  "FROM employees e "
+                  "JOIN branches b ON e.id_branch = b.id_branch "
+                  "WHERE e.id_employee = :employeeId");
+    query.bindValue(":employeeId", employeeId);
+
+    if (query.exec() && query.next()) {
+        Employee emp;
+        emp.idEmployee = query.value("id_employee").toInt();
+        emp.idUser = query.value("id_user").toInt();
+        emp.idBranch = query.value("id_branch").toInt();
+        emp.lastName = query.value("last_name").toString();
+        emp.firstName = query.value("first_name").toString();
+        emp.middleName = query.value("middle_name").toString();
+        emp.phone = query.value("phone").toString();
+        emp.position = query.value("position").toString();
+        emp.branchName = query.value("branch_name").toString();
+        return emp;
+    }
+    return std::nullopt;
+}
