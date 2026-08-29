@@ -540,3 +540,38 @@ bool DBManager::deleteHaircut(int haircutId) {
     }
     return true;
 }
+
+bool DBManager::addPriceHistory(int haircutId, double newPrice) {
+    QSqlQuery query(m_db);
+    query.prepare("INSERT INTO price_history (id_haircut, price, change_date) VALUES (:haircutId, :price, CURRENT_TIMESTAMP)");
+    query.bindValue(":haircutId", haircutId);
+    query.bindValue(":price", newPrice);
+
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+QVector<PriceHistory> DBManager::getPriceHistoryByHaircut(int haircutId) {
+    QVector<PriceHistory> history;
+    QSqlQuery query(m_db);
+    query.prepare("SELECT id_price_history, id_haircut, price, change_date FROM price_history "
+                  "WHERE id_haircut = :haircutId ORDER BY change_date DESC, id_price_history DESC");
+    query.bindValue(":haircutId", haircutId);
+
+    if (query.exec()) {
+        while (query.next()) {
+            PriceHistory ph;
+            ph.idPriceHistory = query.value("id_price_history").toInt();
+            ph.idHaircut = query.value("id_haircut").toInt();
+            ph.price = query.value("price").toDouble();
+            ph.changeDate = query.value("change_date").toDateTime();
+            history.append(ph);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return history;
+}

@@ -64,6 +64,9 @@ public:
     bool updateHaircut(int haircutId, const QString &name, const QString &gender);
     bool deleteHaircut(int haircutId);
 
+    bool addPriceHistory(int haircutId, double newPrice);
+    QVector<PriceHistory> getPriceHistoryByHaircut(int haircutId);
+
 private:
     DBManager(QObject *parent = nullptr);
     ~DBManager() override;
