@@ -47,6 +47,12 @@ public:
     bool deleteUser(int userId);
     bool setUserRole(int userId, int roleId);
 
+    QVector<Branch> getAllBranches();
+    std::optional<Branch> getBranchById(int branchId);
+    bool addBranch(const QString &name, const QString &address, const QString &phone, int *outBranchId = nullptr);
+    bool updateBranch(int branchId, const QString &name, const QString &address, const QString &phone);
+    bool deleteBranch(int branchId);
+
 private:
     DBManager(QObject *parent = nullptr);
     ~DBManager() override;

@@ -258,3 +258,79 @@ bool DBManager::setUserRole(int userId, int roleId) {
     }
     return true;
 }
+
+QVector<Branch> DBManager::getAllBranches() {
+    QVector<Branch> branches;
+    QSqlQuery query(m_db);
+    if (query.exec("SELECT id_branch, branch_name, address, phone FROM branches ORDER BY id_branch ASC")) {
+        while (query.next()) {
+            Branch b;
+            b.idBranch = query.value("id_branch").toInt();
+            b.branchName = query.value("branch_name").toString();
+            b.address = query.value("address").toString();
+            b.phone = query.value("phone").toString();
+            branches.append(b);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return branches;
+}
+
+std::optional<Branch> DBManager::getBranchById(int branchId) {
+    QSqlQuery query(m_db);
+    query.prepare("SELECT id_branch, branch_name, address, phone FROM branches WHERE id_branch = :branchId");
+    query.bindValue(":branchId", branchId);
+    if (query.exec() && query.next()) {
+        Branch b;
+        b.idBranch = query.value("id_branch").toInt();
+        b.branchName = query.value("branch_name").toString();
+        b.address = query.value("address").toString();
+        b.phone = query.value("phone").toString();
+        return b;
+    }
+    return std::nullopt;
+}
+
+bool DBManager::addBranch(const QString &name, const QString &address, const QString &phone, int *outBranchId) {
+    QSqlQuery query(m_db);
+    query.prepare("INSERT INTO branches (branch_name, address, phone) VALUES (:name, :address, :phone) RETURNING id_branch");
+    query.bindValue(":name", name);
+    query.bindValue(":address", address);
+    query.bindValue(":phone", phone);
+
+    if (!query.exec() || !query.next()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    if (outBranchId) {
+        *outBranchId = query.value(0).toInt();
+    }
+    return true;
+}
+
+bool DBManager::updateBranch(int branchId, const QString &name, const QString &address, const QString &phone) {
+    QSqlQuery query(m_db);
+    query.prepare("UPDATE branches SET branch_name = :name, address = :address, phone = :phone WHERE id_branch = :branchId");
+    query.bindValue(":name", name);
+    query.bindValue(":address", address);
+    query.bindValue(":phone", phone);
+    query.bindValue(":branchId", branchId);
+
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+bool DBManager::deleteBranch(int branchId) {
+    QSqlQuery query(m_db);
+    query.prepare("DELETE FROM branches WHERE id_branch = :branchId");
+    query.bindValue(":branchId", branchId);
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}
