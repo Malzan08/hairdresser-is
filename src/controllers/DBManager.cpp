@@ -441,3 +441,102 @@ std::optional<Employee> DBManager::getEmployeeById(int employeeId) {
     }
     return std::nullopt;
 }
+
+QVector<Haircut> DBManager::getAllHaircuts() {
+    QVector<Haircut> haircuts;
+    QSqlQuery query(m_db);
+    QString qStr = "SELECT h.id_haircut, h.haircut_name, h.gender, "
+                   "COALESCE((SELECT ph.price FROM price_history ph "
+                   "WHERE ph.id_haircut = h.id_haircut "
+                   "ORDER BY ph.change_date DESC, ph.id_price_history DESC LIMIT 1), 0.0) AS current_price "
+                   "FROM haircuts h ORDER BY h.id_haircut ASC";
+    if (query.exec(qStr)) {
+        while (query.next()) {
+            Haircut h;
+            h.idHaircut = query.value("id_haircut").toInt();
+            h.haircutName = query.value("haircut_name").toString();
+            h.gender = query.value("gender").toString();
+            h.currentPrice = query.value("current_price").toDouble();
+            haircuts.append(h);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return haircuts;
+}
+
+std::optional<Haircut> DBManager::getHaircutById(int haircutId) {
+    QSqlQuery query(m_db);
+    query.prepare("SELECT h.id_haircut, h.haircut_name, h.gender, "
+                  "COALESCE((SELECT ph.price FROM price_history ph "
+                  "WHERE ph.id_haircut = h.id_haircut "
+                  "ORDER BY ph.change_date DESC, ph.id_price_history DESC LIMIT 1), 0.0) AS current_price "
+                  "FROM haircuts h WHERE h.id_haircut = :haircutId");
+    query.bindValue(":haircutId", haircutId);
+
+    if (query.exec() && query.next()) {
+        Haircut h;
+        h.idHaircut = query.value("id_haircut").toInt();
+        h.haircutName = query.value("haircut_name").toString();
+        h.gender = query.value("gender").toString();
+        h.currentPrice = query.value("current_price").toDouble();
+        return h;
+    }
+    return std::nullopt;
+}
+
+bool DBManager::addHaircut(const QString &name, const QString &gender, double initialPrice, int *outHaircutId) {
+    QSqlQuery query(m_db);
+    query.prepare("INSERT INTO haircuts (haircut_name, gender) VALUES (:name, :gender) RETURNING id_haircut");
+    query.bindValue(":name", name);
+    query.bindValue(":gender", gender);
+
+    if (!query.exec() || !query.next()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+
+    int newId = query.value(0).toInt();
+
+    if (initialPrice > 0.0) {
+        QSqlQuery priceQuery(m_db);
+        priceQuery.prepare("INSERT INTO price_history (id_haircut, price) VALUES (:haircutId, :price)");
+        priceQuery.bindValue(":haircutId", newId);
+        priceQuery.bindValue(":price", initialPrice);
+        if (!priceQuery.exec()) {
+            m_lastError = priceQuery.lastError().text();
+            return false;
+        }
+    }
+
+    if (outHaircutId) {
+        *outHaircutId = newId;
+    }
+    return true;
+}
+
+bool DBManager::updateHaircut(int haircutId, const QString &name, const QString &gender) {
+    QSqlQuery query(m_db);
+    query.prepare("UPDATE haircuts SET haircut_name = :name, gender = :gender WHERE id_haircut = :haircutId");
+    query.bindValue(":name", name);
+    query.bindValue(":gender", gender);
+    query.bindValue(":haircutId", haircutId);
+
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+bool DBManager::deleteHaircut(int haircutId) {
+    QSqlQuery query(m_db);
+    query.prepare("DELETE FROM haircuts WHERE id_haircut = :haircutId");
+    query.bindValue(":haircutId", haircutId);
+
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}

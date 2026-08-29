@@ -58,6 +58,12 @@ public:
     std::optional<Employee> getEmployeeByUserId(int userId);
     std::optional<Employee> getEmployeeById(int employeeId);
 
+    QVector<Haircut> getAllHaircuts();
+    std::optional<Haircut> getHaircutById(int haircutId);
+    bool addHaircut(const QString &name, const QString &gender, double initialPrice, int *outHaircutId = nullptr);
+    bool updateHaircut(int haircutId, const QString &name, const QString &gender);
+    bool deleteHaircut(int haircutId);
+
 private:
     DBManager(QObject *parent = nullptr);
     ~DBManager() override;
