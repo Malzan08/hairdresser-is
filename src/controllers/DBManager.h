@@ -82,6 +82,12 @@ public:
     QVector<Document> getDocumentsByClient(int clientId);
     bool deleteDocument(int docId);
 
+    QVector<ClientStats> getClientStats();
+    QVector<BranchReport> getBranchReports();
+    int getClientVisitCount(int clientId);
+    double getClientDiscount(int clientId);
+    double getClientTotalSpent(int clientId);
+
 private:
     DBManager(QObject *parent = nullptr);
     ~DBManager() override;

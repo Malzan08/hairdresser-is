@@ -877,3 +877,68 @@ bool DBManager::deleteDocument(int docId) {
     }
     return true;
 }
+
+QVector<ClientStats> DBManager::getClientStats() {
+    QVector<ClientStats> stats;
+    QSqlQuery query(m_db);
+    if (query.exec("SELECT id_client, client_name, phone, total_visits, client_status, total_spent "
+                   "FROM view_client_stats ORDER BY total_visits DESC, id_client ASC")) {
+        while (query.next()) {
+            ClientStats cs;
+            cs.idClient = query.value("id_client").toInt();
+            cs.clientName = query.value("client_name").toString();
+            cs.phone = query.value("phone").toString();
+            cs.totalVisits = query.value("total_visits").toInt();
+            cs.clientStatus = query.value("client_status").toString();
+            cs.totalSpent = query.value("total_spent").toDouble();
+            stats.append(cs);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return stats;
+}
+
+QVector<BranchReport> DBManager::getBranchReports() {
+    QVector<BranchReport> reports;
+    QSqlQuery query(m_db);
+    if (query.exec("SELECT id_branch, branch_name, services_rendered, total_revenue "
+                   "FROM view_branch_report ORDER BY id_branch ASC")) {
+        while (query.next()) {
+            BranchReport br;
+            br.idBranch = query.value("id_branch").toInt();
+            br.branchName = query.value("branch_name").toString();
+            br.servicesRendered = query.value("services_rendered").toInt();
+            br.totalRevenue = query.value("total_revenue").toDouble();
+            reports.append(br);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return reports;
+}
+
+int DBManager::getClientVisitCount(int clientId) {
+    QSqlQuery query(m_db);
+    query.prepare("SELECT COUNT(*) FROM documents WHERE id_client = :clientId");
+    query.bindValue(":clientId", clientId);
+    if (query.exec() && query.next()) {
+        return query.value(0).toInt();
+    }
+    return 0;
+}
+
+double DBManager::getClientDiscount(int clientId) {
+    int visits = getClientVisitCount(clientId);
+    return (visits >= 5) ? 3.0 : 0.0;
+}
+
+double DBManager::getClientTotalSpent(int clientId) {
+    QSqlQuery query(m_db);
+    query.prepare("SELECT COALESCE(SUM(final_cost), 0.0) FROM documents WHERE id_client = :clientId");
+    query.bindValue(":clientId", clientId);
+    if (query.exec() && query.next()) {
+        return query.value(0).toDouble();
+    }
+    return 0.0;
+}
