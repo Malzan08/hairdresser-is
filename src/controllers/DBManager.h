@@ -67,6 +67,15 @@ public:
     bool addPriceHistory(int haircutId, double newPrice);
     QVector<PriceHistory> getPriceHistoryByHaircut(int haircutId);
 
+    QVector<Client> getAllClients();
+    std::optional<Client> getClientById(int clientId);
+    std::optional<Client> getClientByPhone(const QString &phone);
+    std::optional<Client> getClientByUserId(int userId);
+    bool addClient(const QString &lastName, const QString &firstName, const QString &middleName, const QString &phone, std::optional<int> userId = std::nullopt, int *outClientId = nullptr);
+    bool updateClientPhone(int clientId, const QString &newPhone);
+    bool updateClient(int clientId, const QString &lastName, const QString &firstName, const QString &middleName, const QString &phone);
+    bool deleteClient(int clientId);
+
 private:
     DBManager(QObject *parent = nullptr);
     ~DBManager() override;

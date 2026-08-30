@@ -575,3 +575,145 @@ QVector<PriceHistory> DBManager::getPriceHistoryByHaircut(int haircutId) {
     }
     return history;
 }
+
+QVector<Client> DBManager::getAllClients() {
+    QVector<Client> clients;
+    QSqlQuery query(m_db);
+    if (query.exec("SELECT id_client, id_user, last_name, first_name, middle_name, phone FROM clients ORDER BY id_client ASC")) {
+        while (query.next()) {
+            Client c;
+            c.idClient = query.value("id_client").toInt();
+            c.idUser = query.value("id_user").isNull() ? 0 : query.value("id_user").toInt();
+            c.lastName = query.value("last_name").toString();
+            c.firstName = query.value("first_name").toString();
+            c.middleName = query.value("middle_name").toString();
+            c.phone = query.value("phone").toString();
+            clients.append(c);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return clients;
+}
+
+std::optional<Client> DBManager::getClientById(int clientId) {
+    QSqlQuery query(m_db);
+    query.prepare("SELECT id_client, id_user, last_name, first_name, middle_name, phone FROM clients WHERE id_client = :clientId");
+    query.bindValue(":clientId", clientId);
+
+    if (query.exec() && query.next()) {
+        Client c;
+        c.idClient = query.value("id_client").toInt();
+        c.idUser = query.value("id_user").isNull() ? 0 : query.value("id_user").toInt();
+        c.lastName = query.value("last_name").toString();
+        c.firstName = query.value("first_name").toString();
+        c.middleName = query.value("middle_name").toString();
+        c.phone = query.value("phone").toString();
+        return c;
+    }
+    return std::nullopt;
+}
+
+std::optional<Client> DBManager::getClientByPhone(const QString &phone) {
+    QSqlQuery query(m_db);
+    query.prepare("SELECT id_client, id_user, last_name, first_name, middle_name, phone FROM clients WHERE phone = :phone");
+    query.bindValue(":phone", phone);
+
+    if (query.exec() && query.next()) {
+        Client c;
+        c.idClient = query.value("id_client").toInt();
+        c.idUser = query.value("id_user").isNull() ? 0 : query.value("id_user").toInt();
+        c.lastName = query.value("last_name").toString();
+        c.firstName = query.value("first_name").toString();
+        c.middleName = query.value("middle_name").toString();
+        c.phone = query.value("phone").toString();
+        return c;
+    }
+    return std::nullopt;
+}
+
+std::optional<Client> DBManager::getClientByUserId(int userId) {
+    QSqlQuery query(m_db);
+    query.prepare("SELECT id_client, id_user, last_name, first_name, middle_name, phone FROM clients WHERE id_user = :userId");
+    query.bindValue(":userId", userId);
+
+    if (query.exec() && query.next()) {
+        Client c;
+        c.idClient = query.value("id_client").toInt();
+        c.idUser = query.value("id_user").isNull() ? 0 : query.value("id_user").toInt();
+        c.lastName = query.value("last_name").toString();
+        c.firstName = query.value("first_name").toString();
+        c.middleName = query.value("middle_name").toString();
+        c.phone = query.value("phone").toString();
+        return c;
+    }
+    return std::nullopt;
+}
+
+bool DBManager::addClient(const QString &lastName, const QString &firstName, const QString &middleName, const QString &phone, std::optional<int> userId, int *outClientId) {
+    QSqlQuery query(m_db);
+    if (userId.has_value()) {
+        query.prepare("INSERT INTO clients (id_user, last_name, first_name, middle_name, phone) "
+                      "VALUES (:userId, :lastName, :firstName, :middleName, :phone) RETURNING id_client");
+        query.bindValue(":userId", userId.value());
+    } else {
+        query.prepare("INSERT INTO clients (last_name, first_name, middle_name, phone) "
+                      "VALUES (:lastName, :firstName, :middleName, :phone) RETURNING id_client");
+    }
+    query.bindValue(":lastName", lastName);
+    query.bindValue(":firstName", firstName);
+    query.bindValue(":middleName", middleName.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : middleName);
+    query.bindValue(":phone", phone);
+
+    if (!query.exec() || !query.next()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+
+    if (outClientId) {
+        *outClientId = query.value(0).toInt();
+    }
+    return true;
+}
+
+bool DBManager::updateClientPhone(int clientId, const QString &newPhone) {
+    QSqlQuery query(m_db);
+    query.prepare("UPDATE clients SET phone = :phone WHERE id_client = :clientId");
+    query.bindValue(":phone", newPhone);
+    query.bindValue(":clientId", clientId);
+
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+bool DBManager::updateClient(int clientId, const QString &lastName, const QString &firstName, const QString &middleName, const QString &phone) {
+    QSqlQuery query(m_db);
+    query.prepare("UPDATE clients SET last_name = :lastName, first_name = :firstName, "
+                  "middle_name = :middleName, phone = :phone WHERE id_client = :clientId");
+    query.bindValue(":lastName", lastName);
+    query.bindValue(":firstName", firstName);
+    query.bindValue(":middleName", middleName.isEmpty() ? QVariant(QMetaType(QMetaType::QString)) : middleName);
+    query.bindValue(":phone", phone);
+    query.bindValue(":clientId", clientId);
+
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}
+
+bool DBManager::deleteClient(int clientId) {
+    QSqlQuery query(m_db);
+    query.prepare("DELETE FROM clients WHERE id_client = :clientId");
+    query.bindValue(":clientId", clientId);
+
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}
