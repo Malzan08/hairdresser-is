@@ -76,6 +76,12 @@ public:
     bool updateClient(int clientId, const QString &lastName, const QString &firstName, const QString &middleName, const QString &phone);
     bool deleteClient(int clientId);
 
+    bool addDocument(int branchId, int employeeId, int clientId, int haircutId, const QDateTime &serviceDate = QDateTime::currentDateTime(), int *outDocId = nullptr);
+    QVector<Document> getAllDocuments();
+    QVector<Document> getDocumentsByBranch(int branchId);
+    QVector<Document> getDocumentsByClient(int clientId);
+    bool deleteDocument(int docId);
+
 private:
     DBManager(QObject *parent = nullptr);
     ~DBManager() override;

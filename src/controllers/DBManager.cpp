@@ -717,3 +717,163 @@ bool DBManager::deleteClient(int clientId) {
     }
     return true;
 }
+
+bool DBManager::addDocument(int branchId, int employeeId, int clientId, int haircutId, const QDateTime &serviceDate, int *outDocId) {
+    QSqlQuery query(m_db);
+    query.prepare("INSERT INTO documents (id_branch, id_employee, id_client, id_haircut, service_date, final_cost) "
+                  "VALUES (:branchId, :employeeId, :clientId, :haircutId, :serviceDate, 0) RETURNING id_document");
+    query.bindValue(":branchId", branchId);
+    query.bindValue(":employeeId", employeeId);
+    query.bindValue(":clientId", clientId);
+    query.bindValue(":haircutId", haircutId);
+    query.bindValue(":serviceDate", serviceDate);
+
+    if (!query.exec() || !query.next()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+
+    if (outDocId) {
+        *outDocId = query.value(0).toInt();
+    }
+    return true;
+}
+
+QVector<Document> DBManager::getAllDocuments() {
+    QVector<Document> documents;
+    QSqlQuery query(m_db);
+    QString qStr = "SELECT d.id_document, d.id_branch, d.id_employee, d.id_client, d.id_haircut, "
+                   "d.service_date, d.discount_rate, d.final_cost, "
+                   "b.branch_name, "
+                   "CONCAT(e.last_name, ' ', SUBSTRING(e.first_name, 1, 1), '.', "
+                   "       CASE WHEN e.middle_name IS NOT NULL AND LENGTH(e.middle_name) > 0 "
+                   "            THEN CONCAT(SUBSTRING(e.middle_name, 1, 1), '.') ELSE '' END) AS employee_name, "
+                   "CONCAT(c.last_name, ' ', c.first_name, ' ', COALESCE(c.middle_name, '')) AS client_name, "
+                   "h.haircut_name "
+                   "FROM documents d "
+                   "JOIN branches b ON d.id_branch = b.id_branch "
+                   "JOIN employees e ON d.id_employee = e.id_employee "
+                   "JOIN clients c ON d.id_client = c.id_client "
+                   "JOIN haircuts h ON d.id_haircut = h.id_haircut "
+                   "ORDER BY d.service_date DESC, d.id_document DESC";
+
+    if (query.exec(qStr)) {
+        while (query.next()) {
+            Document doc;
+            doc.idDocument = query.value("id_document").toInt();
+            doc.idBranch = query.value("id_branch").toInt();
+            doc.idEmployee = query.value("id_employee").toInt();
+            doc.idClient = query.value("id_client").toInt();
+            doc.idHaircut = query.value("id_haircut").toInt();
+            doc.serviceDate = query.value("service_date").toDateTime();
+            doc.discountRate = query.value("discount_rate").toDouble();
+            doc.finalCost = query.value("final_cost").toDouble();
+            doc.branchName = query.value("branch_name").toString();
+            doc.employeeName = query.value("employee_name").toString();
+            doc.clientName = query.value("client_name").toString();
+            doc.haircutName = query.value("haircut_name").toString();
+            documents.append(doc);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return documents;
+}
+
+QVector<Document> DBManager::getDocumentsByBranch(int branchId) {
+    QVector<Document> documents;
+    QSqlQuery query(m_db);
+    query.prepare("SELECT d.id_document, d.id_branch, d.id_employee, d.id_client, d.id_haircut, "
+                  "d.service_date, d.discount_rate, d.final_cost, "
+                  "b.branch_name, "
+                  "CONCAT(e.last_name, ' ', SUBSTRING(e.first_name, 1, 1), '.', "
+                  "       CASE WHEN e.middle_name IS NOT NULL AND LENGTH(e.middle_name) > 0 "
+                  "            THEN CONCAT(SUBSTRING(e.middle_name, 1, 1), '.') ELSE '' END) AS employee_name, "
+                  "CONCAT(c.last_name, ' ', c.first_name, ' ', COALESCE(c.middle_name, '')) AS client_name, "
+                  "h.haircut_name "
+                  "FROM documents d "
+                  "JOIN branches b ON d.id_branch = b.id_branch "
+                  "JOIN employees e ON d.id_employee = e.id_employee "
+                  "JOIN clients c ON d.id_client = c.id_client "
+                  "JOIN haircuts h ON d.id_haircut = h.id_haircut "
+                  "WHERE d.id_branch = :branchId "
+                  "ORDER BY d.service_date DESC, d.id_document DESC");
+    query.bindValue(":branchId", branchId);
+
+    if (query.exec()) {
+        while (query.next()) {
+            Document doc;
+            doc.idDocument = query.value("id_document").toInt();
+            doc.idBranch = query.value("id_branch").toInt();
+            doc.idEmployee = query.value("id_employee").toInt();
+            doc.idClient = query.value("id_client").toInt();
+            doc.idHaircut = query.value("id_haircut").toInt();
+            doc.serviceDate = query.value("service_date").toDateTime();
+            doc.discountRate = query.value("discount_rate").toDouble();
+            doc.finalCost = query.value("final_cost").toDouble();
+            doc.branchName = query.value("branch_name").toString();
+            doc.employeeName = query.value("employee_name").toString();
+            doc.clientName = query.value("client_name").toString();
+            doc.haircutName = query.value("haircut_name").toString();
+            documents.append(doc);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return documents;
+}
+
+QVector<Document> DBManager::getDocumentsByClient(int clientId) {
+    QVector<Document> documents;
+    QSqlQuery query(m_db);
+    query.prepare("SELECT d.id_document, d.id_branch, d.id_employee, d.id_client, d.id_haircut, "
+                  "d.service_date, d.discount_rate, d.final_cost, "
+                  "b.branch_name, "
+                  "CONCAT(e.last_name, ' ', SUBSTRING(e.first_name, 1, 1), '.', "
+                  "       CASE WHEN e.middle_name IS NOT NULL AND LENGTH(e.middle_name) > 0 "
+                  "            THEN CONCAT(SUBSTRING(e.middle_name, 1, 1), '.') ELSE '' END) AS employee_name, "
+                  "CONCAT(c.last_name, ' ', c.first_name, ' ', COALESCE(c.middle_name, '')) AS client_name, "
+                  "h.haircut_name "
+                  "FROM documents d "
+                  "JOIN branches b ON d.id_branch = b.id_branch "
+                  "JOIN employees e ON d.id_employee = e.id_employee "
+                  "JOIN clients c ON d.id_client = c.id_client "
+                  "JOIN haircuts h ON d.id_haircut = h.id_haircut "
+                  "WHERE d.id_client = :clientId "
+                  "ORDER BY d.service_date DESC, d.id_document DESC");
+    query.bindValue(":clientId", clientId);
+
+    if (query.exec()) {
+        while (query.next()) {
+            Document doc;
+            doc.idDocument = query.value("id_document").toInt();
+            doc.idBranch = query.value("id_branch").toInt();
+            doc.idEmployee = query.value("id_employee").toInt();
+            doc.idClient = query.value("id_client").toInt();
+            doc.idHaircut = query.value("id_haircut").toInt();
+            doc.serviceDate = query.value("service_date").toDateTime();
+            doc.discountRate = query.value("discount_rate").toDouble();
+            doc.finalCost = query.value("final_cost").toDouble();
+            doc.branchName = query.value("branch_name").toString();
+            doc.employeeName = query.value("employee_name").toString();
+            doc.clientName = query.value("client_name").toString();
+            doc.haircutName = query.value("haircut_name").toString();
+            documents.append(doc);
+        }
+    } else {
+        m_lastError = query.lastError().text();
+    }
+    return documents;
+}
+
+bool DBManager::deleteDocument(int docId) {
+    QSqlQuery query(m_db);
+    query.prepare("DELETE FROM documents WHERE id_document = :docId");
+    query.bindValue(":docId", docId);
+
+    if (!query.exec()) {
+        m_lastError = query.lastError().text();
+        return false;
+    }
+    return true;
+}
