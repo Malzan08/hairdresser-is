@@ -75,8 +75,57 @@ QWidget* LoginWindow::createLoginTab() {
 QWidget* LoginWindow::createRegisterTab() {
     auto *tab = new QWidget(this);
     auto *layout = new QVBoxLayout(tab);
-    m_regStatusLabel = new QLabel("Форма в разработке", tab);
+    layout->setContentsMargins(15, 15, 15, 15);
+    layout->setSpacing(8);
+
+    auto *formLayout = new QFormLayout();
+    formLayout->setSpacing(8);
+
+    m_regLastNameEdit = new QLineEdit(tab);
+    m_regLastNameEdit->setPlaceholderText("Иванов");
+    formLayout->addRow("Фамилия*:", m_regLastNameEdit);
+
+    m_regFirstNameEdit = new QLineEdit(tab);
+    m_regFirstNameEdit->setPlaceholderText("Иван");
+    formLayout->addRow("Имя*:", m_regFirstNameEdit);
+
+    m_regMiddleNameEdit = new QLineEdit(tab);
+    m_regMiddleNameEdit->setPlaceholderText("Иванович (необязательно)");
+    formLayout->addRow("Отчество:", m_regMiddleNameEdit);
+
+    m_regPhoneEdit = new QLineEdit(tab);
+    m_regPhoneEdit->setPlaceholderText("+7(999)000-00-00");
+    formLayout->addRow("Телефон*:", m_regPhoneEdit);
+
+    m_regLoginEdit = new QLineEdit(tab);
+    m_regLoginEdit->setPlaceholderText("Логин");
+    formLayout->addRow("Логин*:", m_regLoginEdit);
+
+    m_regPasswordEdit = new QLineEdit(tab);
+    m_regPasswordEdit->setEchoMode(QLineEdit::Password);
+    m_regPasswordEdit->setPlaceholderText("Минимум 8 симв., цифра, буква, спецсимвол");
+    formLayout->addRow("Пароль*:", m_regPasswordEdit);
+
+    m_regPasswordConfirmEdit = new QLineEdit(tab);
+    m_regPasswordConfirmEdit->setEchoMode(QLineEdit::Password);
+    m_regPasswordConfirmEdit->setPlaceholderText("Повторите пароль");
+    formLayout->addRow("Повтор*:", m_regPasswordConfirmEdit);
+
+    layout->addLayout(formLayout);
+
+    m_regStatusLabel = new QLabel(tab);
+    m_regStatusLabel->setWordWrap(true);
+    m_regStatusLabel->setStyleSheet("color: #e53e3e; font-size: 11px;");
     layout->addWidget(m_regStatusLabel);
+
+    layout->addStretch();
+
+    auto *regBtn = new QPushButton("Зарегистрироваться", tab);
+    regBtn->setFixedHeight(36);
+    regBtn->setStyleSheet("background-color: #38a169; color: white; font-weight: bold; border-radius: 4px;");
+    connect(regBtn, &QPushButton::clicked, this, &LoginWindow::onRegisterClicked);
+    layout->addWidget(regBtn);
+
     return tab;
 }
 
@@ -101,6 +150,46 @@ void LoginWindow::onLoginClicked() {
 }
 
 void LoginWindow::onRegisterClicked() {
+    QString lastName = m_regLastNameEdit->text().trimmed();
+    QString firstName = m_regFirstNameEdit->text().trimmed();
+    QString middleName = m_regMiddleNameEdit->text().trimmed();
+    QString phone = m_regPhoneEdit->text().trimmed();
+    QString login = m_regLoginEdit->text().trimmed();
+    QString password = m_regPasswordEdit->text();
+    QString confirm = m_regPasswordConfirmEdit->text();
+
+    if (lastName.isEmpty() || firstName.isEmpty() || phone.isEmpty() || login.isEmpty() || password.isEmpty()) {
+        m_regStatusLabel->setText("Пожалуйста, заполните все обязательные поля (*).");
+        return;
+    }
+
+    if (password != confirm) {
+        m_regStatusLabel->setText("Введенные пароли не совпадают.");
+        return;
+    }
+
+    QString pwdError;
+    if (!validatePassword(password, pwdError)) {
+        m_regStatusLabel->setText(pwdError);
+        return;
+    }
+
+    int newUserId = 0;
+    if (!DBManager::instance().registerUser(login, password, "Client", &newUserId)) {
+        m_regStatusLabel->setText(DBManager::instance().lastError());
+        return;
+    }
+
+    if (!DBManager::instance().addClient(lastName, firstName, middleName, phone, newUserId)) {
+        m_regStatusLabel->setText(DBManager::instance().lastError());
+        return;
+    }
+
+    QMessageBox::information(this, "Успех", "Регистрация прошла успешно! Теперь вы можете войти в систему.");
+    m_tabWidget->setCurrentIndex(0);
+    m_loginEdit->setText(login);
+    m_passwordEdit->setText(password);
+    m_regStatusLabel->clear();
 }
 
 bool LoginWindow::validatePassword(const QString &password, QString &outError) {
