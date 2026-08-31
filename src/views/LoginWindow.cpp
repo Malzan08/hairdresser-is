@@ -194,8 +194,24 @@ void LoginWindow::onRegisterClicked() {
 
 bool LoginWindow::validatePassword(const QString &password, QString &outError) {
     if (password.length() < 8) {
-        outError = "Пароль должен содержать не менее 8 символов.";
+        outError = "Пароль должен быть длиной не менее 8 символов.";
         return false;
     }
+    QRegularExpression digitRegex("[0-9]");
+    if (!digitRegex.match(password).hasMatch()) {
+        outError = "Пароль должен содержать хотя бы одну цифру (0-9).";
+        return false;
+    }
+    QRegularExpression upperRegex("[A-ZА-ЯЁ]");
+    if (!upperRegex.match(password).hasMatch()) {
+        outError = "Пароль должен содержать хотя бы одну заглавную букву (A-Z или А-Я).";
+        return false;
+    }
+    QRegularExpression specialRegex("[^a-zA-Z0-9а-яА-ЯёЁ\\s]");
+    if (!specialRegex.match(password).hasMatch()) {
+        outError = "Пароль должен содержать хотя бы один специальный символ (!@#$%^&* и др.).";
+        return false;
+    }
+    outError.clear();
     return true;
 }
