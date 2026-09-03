@@ -152,6 +152,70 @@ QWidget* MainWindow::createBranchesTab() {
 
 QWidget* MainWindow::createHaircutsTab() {
     auto *tab = new QWidget(this);
+    auto *layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(10);
+
+    auto *btnLayout = new QHBoxLayout();
+    auto *addBtn = new QPushButton("Добавить стрижку", tab);
+    auto *editBtn = new QPushButton("Редактировать", tab);
+    auto *priceBtn = new QPushButton("Изменить цену", tab);
+    auto *delBtn = new QPushButton("Удалить стрижку", tab);
+    auto *refreshBtn = new QPushButton("Обновить", tab);
+
+    addBtn->setStyleSheet("background-color: #3182ce; color: white; padding: 5px 12px;");
+    priceBtn->setStyleSheet("background-color: #d69e2e; color: white; padding: 5px 12px; font-weight: bold;");
+    delBtn->setStyleSheet("background-color: #e53e3e; color: white; padding: 5px 12px;");
+
+    connect(addBtn, &QPushButton::clicked, this, &MainWindow::onAddHaircut);
+    connect(editBtn, &QPushButton::clicked, this, &MainWindow::onEditHaircut);
+    connect(priceBtn, &QPushButton::clicked, this, &MainWindow::onChangeHaircutPrice);
+    connect(delBtn, &QPushButton::clicked, this, &MainWindow::onDeleteHaircut);
+    connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::onRefreshHaircuts);
+
+    if (m_userRole == "Admin") {
+        btnLayout->addWidget(addBtn);
+        btnLayout->addWidget(editBtn);
+        btnLayout->addWidget(priceBtn);
+        btnLayout->addWidget(delBtn);
+    }
+    btnLayout->addStretch();
+    btnLayout->addWidget(refreshBtn);
+    layout->addLayout(btnLayout);
+
+    auto *splitLayout = new QHBoxLayout();
+
+    auto *leftBox = new QVBoxLayout();
+    auto *hLabel = new QLabel("<b>Каталог услуг и стрижек</b>", tab);
+    leftBox->addWidget(hLabel);
+
+    m_haircutsTable = new QTableWidget(tab);
+    m_haircutsTable->setColumnCount(4);
+    m_haircutsTable->setHorizontalHeaderLabels({"ID", "Название услуги", "Категория", "Текущая цена"});
+    m_haircutsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_haircutsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_haircutsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_haircutsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    connect(m_haircutsTable, &QTableWidget::itemSelectionChanged, this, &MainWindow::onHaircutSelectionChanged);
+    leftBox->addWidget(m_haircutsTable);
+    splitLayout->addLayout(leftBox, 3);
+
+    auto *rightBox = new QVBoxLayout();
+    auto *histLabel = new QLabel("<b>История изменения цен (Price History)</b>", tab);
+    rightBox->addWidget(histLabel);
+
+    m_priceHistoryTable = new QTableWidget(tab);
+    m_priceHistoryTable->setColumnCount(3);
+    m_priceHistoryTable->setHorizontalHeaderLabels({"ID", "Цена (руб.)", "Дата и время фиксации"});
+    m_priceHistoryTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_priceHistoryTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_priceHistoryTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    rightBox->addWidget(m_priceHistoryTable);
+    splitLayout->addLayout(rightBox, 2);
+
+    layout->addLayout(splitLayout);
+
+    loadHaircuts();
     return tab;
 }
 
@@ -240,12 +304,130 @@ void MainWindow::onRefreshBranches() {
     statusBar()->showMessage("Список филиалов обновлен", 2000);
 }
 
-void MainWindow::onAddHaircut() {}
-void MainWindow::onEditHaircut() {}
-void MainWindow::onDeleteHaircut() {}
-void MainWindow::onChangeHaircutPrice() {}
-void MainWindow::onHaircutSelectionChanged() {}
-void MainWindow::onRefreshHaircuts() {}
+void MainWindow::onAddHaircut() {
+    HaircutDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (!DBManager::instance().addHaircut(dlg.haircutName(), dlg.gender(), dlg.price())) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось добавить услугу: " + DBManager::instance().lastError());
+        } else {
+            loadHaircuts();
+            statusBar()->showMessage("Стрижка успешно добавлена", 3000);
+        }
+    }
+}
+
+void MainWindow::onEditHaircut() {
+    int row = m_haircutsTable->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, "Внимание", "Выберите услугу для редактирования.");
+        return;
+    }
+
+    Haircut h;
+    h.idHaircut = m_haircutsTable->item(row, 0)->text().toInt();
+    h.haircutName = m_haircutsTable->item(row, 1)->text();
+    h.gender = m_haircutsTable->item(row, 2)->text();
+    h.currentPrice = m_haircutsTable->item(row, 3)->text().split(" ").first().toDouble();
+
+    HaircutDialog dlg(h, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (!DBManager::instance().updateHaircut(h.idHaircut, dlg.haircutName(), dlg.gender())) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось обновить стрижку: " + DBManager::instance().lastError());
+        } else {
+            loadHaircuts();
+            statusBar()->showMessage("Параметры стрижки обновлены", 3000);
+        }
+    }
+}
+
+void MainWindow::onDeleteHaircut() {
+    int row = m_haircutsTable->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, "Внимание", "Выберите стрижку для удаления.");
+        return;
+    }
+
+    int haircutId = m_haircutsTable->item(row, 0)->text().toInt();
+    QString name = m_haircutsTable->item(row, 1)->text();
+
+    if (QMessageBox::question(this, "Подтверждение", "Удалить услугу «" + name + "»? Все связанные записи из истории цен также будут удалены.") == QMessageBox::Yes) {
+        if (!DBManager::instance().deleteHaircut(haircutId)) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось удалить стрижку: " + DBManager::instance().lastError());
+        } else {
+            loadHaircuts();
+            statusBar()->showMessage("Стрижка удалена", 3000);
+        }
+    }
+}
+
+void MainWindow::onChangeHaircutPrice() {
+    int row = m_haircutsTable->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, "Внимание", "Выберите стрижку для изменения стоимости.");
+        return;
+    }
+
+    int haircutId = m_haircutsTable->item(row, 0)->text().toInt();
+    QString name = m_haircutsTable->item(row, 1)->text();
+    double currentPrice = m_haircutsTable->item(row, 3)->text().split(" ").first().toDouble();
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("Изменение стоимости стрижки");
+    dlg.setFixedWidth(360);
+    auto *l = new QVBoxLayout(&dlg);
+    l->setSpacing(12);
+
+    auto *info = new QLabel(QString("Услуга: <b>%1</b><br>Текущая цена: %2 ₽").arg(name).arg(currentPrice, 0, 'f', 2), &dlg);
+    l->addWidget(info);
+
+    auto *spin = new QDoubleSpinBox(&dlg);
+    spin->setRange(100.0, 50000.0);
+    spin->setSingleStep(50.0);
+    spin->setValue(currentPrice);
+    spin->setSuffix(" ₽");
+    l->addWidget(new QLabel("Новая стоимость:", &dlg));
+    l->addWidget(spin);
+
+    auto *hl = new QHBoxLayout();
+    auto *cBtn = new QPushButton("Отмена", &dlg);
+    auto *sBtn = new QPushButton("Зафиксировать в истории", &dlg);
+    sBtn->setStyleSheet("background-color: #3182ce; color: white; font-weight: bold; padding: 6px 12px;");
+    connect(cBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    connect(sBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+    hl->addStretch();
+    hl->addWidget(cBtn);
+    hl->addWidget(sBtn);
+    l->addLayout(hl);
+
+    if (dlg.exec() == QDialog::Accepted) {
+        double newPrice = spin->value();
+        if (!DBManager::instance().addPriceHistory(haircutId, newPrice)) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось зафиксировать новую цену: " + DBManager::instance().lastError());
+        } else {
+            loadHaircuts();
+            statusBar()->showMessage("Новая цена успешно зафиксирована в истории цен", 3000);
+        }
+    }
+}
+
+void MainWindow::onHaircutSelectionChanged() {
+    int row = m_haircutsTable->currentRow();
+    if (row < 0 || !m_priceHistoryTable) return;
+
+    int haircutId = m_haircutsTable->item(row, 0)->text().toInt();
+    auto history = DBManager::instance().getPriceHistoryByHaircut(haircutId);
+    m_priceHistoryTable->setRowCount(history.size());
+    for (int i = 0; i < history.size(); ++i) {
+        m_priceHistoryTable->setItem(i, 0, new QTableWidgetItem(QString::number(history[i].idPriceHistory)));
+        m_priceHistoryTable->setItem(i, 1, new QTableWidgetItem(QString("%1 ₽").arg(history[i].price, 0, 'f', 2)));
+        m_priceHistoryTable->setItem(i, 2, new QTableWidgetItem(history[i].changeDate.toString("dd.MM.yyyy HH:mm:ss")));
+    }
+}
+
+void MainWindow::onRefreshHaircuts() {
+    loadHaircuts();
+    statusBar()->showMessage("Каталог стрижек обновлен", 2000);
+}
 
 void MainWindow::onAddUser() {}
 void MainWindow::onDeleteUser() {}
@@ -289,7 +471,21 @@ void MainWindow::loadBranches() {
     }
 }
 
-void MainWindow::loadHaircuts() {}
+void MainWindow::loadHaircuts() {
+    if (!m_haircutsTable) return;
+    auto haircuts = DBManager::instance().getAllHaircuts();
+    m_haircutsTable->setRowCount(haircuts.size());
+    for (int i = 0; i < haircuts.size(); ++i) {
+        m_haircutsTable->setItem(i, 0, new QTableWidgetItem(QString::number(haircuts[i].idHaircut)));
+        m_haircutsTable->setItem(i, 1, new QTableWidgetItem(haircuts[i].haircutName));
+        m_haircutsTable->setItem(i, 2, new QTableWidgetItem(haircuts[i].gender));
+        m_haircutsTable->setItem(i, 3, new QTableWidgetItem(QString("%1 ₽").arg(haircuts[i].currentPrice, 0, 'f', 2)));
+    }
+    if (!haircuts.isEmpty()) {
+        m_haircutsTable->selectRow(0);
+        onHaircutSelectionChanged();
+    }
+}
 void MainWindow::loadUsers() {}
 void MainWindow::loadClients() {}
 void MainWindow::loadVisits() {}
