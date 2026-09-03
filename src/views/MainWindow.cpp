@@ -42,7 +42,14 @@ void MainWindow::setupUi() {
 
     auto *topBar = new QHBoxLayout();
     m_userInfoLabel = new QLabel(this);
-    m_userInfoLabel->setText(QString("Пользователь: <b>%1</b> | Роль: <b>%2</b>").arg(m_currentUser.login, m_userRole));
+    QString userDetails = QString("Пользователь: <b>%1</b> | Роль: <b>%2</b>").arg(m_currentUser.login, m_userRole);
+    if (m_userRole == "Master" && m_employeeBranchId > 0) {
+        auto branchOpt = DBManager::instance().getBranchById(m_employeeBranchId);
+        if (branchOpt.has_value()) {
+            userDetails += QString(" | Филиал: <b>%1</b>").arg(branchOpt->branchName);
+        }
+    }
+    m_userInfoLabel->setText(userDetails);
     topBar->addWidget(m_userInfoLabel);
 
     topBar->addStretch();
