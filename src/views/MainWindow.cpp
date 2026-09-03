@@ -304,8 +304,54 @@ QWidget* MainWindow::createClientsTab() {
     return tab;
 }
 
-QWidget* MainWindow::createVisitsTab(bool) {
+QWidget* MainWindow::createVisitsTab(bool isMasterView) {
     auto *tab = new QWidget(this);
+    auto *layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(10);
+
+    auto *topLayout = new QHBoxLayout();
+    m_addVisitBtn = new QPushButton("Оформить визит", tab);
+    m_addVisitBtn->setStyleSheet("background-color: #38a169; color: white; font-weight: bold; padding: 5px 14px;");
+    connect(m_addVisitBtn, &QPushButton::clicked, this, &MainWindow::onAddVisit);
+    topLayout->addWidget(m_addVisitBtn);
+
+    if (!isMasterView && m_userRole == "Admin") {
+        m_deleteVisitBtn = new QPushButton("Удалить запись", tab);
+        m_deleteVisitBtn->setStyleSheet("background-color: #e53e3e; color: white; padding: 5px 12px;");
+        connect(m_deleteVisitBtn, &QPushButton::clicked, this, &MainWindow::onDeleteVisit);
+        topLayout->addWidget(m_deleteVisitBtn);
+
+        topLayout->addSpacing(15);
+        topLayout->addWidget(new QLabel("Фильтр по филиалу:", tab));
+        m_visitBranchFilter = new QComboBox(tab);
+        m_visitBranchFilter->addItem("Все филиалы", 0);
+        auto branches = DBManager::instance().getAllBranches();
+        for (const auto &b : branches) {
+            m_visitBranchFilter->addItem(b.branchName, b.idBranch);
+        }
+        connect(m_visitBranchFilter, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onFilterVisits);
+        topLayout->addWidget(m_visitBranchFilter);
+    }
+
+    topLayout->addStretch();
+
+    auto *refreshBtn = new QPushButton("Обновить журнал", tab);
+    connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::onRefreshVisits);
+    topLayout->addWidget(refreshBtn);
+
+    layout->addLayout(topLayout);
+
+    m_visitsTable = new QTableWidget(tab);
+    m_visitsTable->setColumnCount(8);
+    m_visitsTable->setHorizontalHeaderLabels({"ID", "Дата и время", "Филиал", "Мастер", "Клиент", "Услуга", "Скидка", "Итог к оплате"});
+    m_visitsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_visitsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_visitsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_visitsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(m_visitsTable);
+
+    loadVisits();
     return tab;
 }
 
@@ -627,10 +673,52 @@ void MainWindow::onRefreshClients() {
     statusBar()->showMessage("Список клиентов обновлен", 2000);
 }
 
-void MainWindow::onAddVisit() {}
-void MainWindow::onDeleteVisit() {}
-void MainWindow::onRefreshVisits() {}
-void MainWindow::onFilterVisits() {}
+void MainWindow::onAddVisit() {
+    VisitDialog dlg(m_employeeBranchId, m_employeeId, this);
+    if (dlg.exec() == QDialog::Accepted) {
+        int docId = 0;
+        if (!DBManager::instance().addDocument(dlg.selectedBranchId(), dlg.selectedEmployeeId(),
+                                               dlg.selectedClientId(), dlg.selectedHaircutId(),
+                                               dlg.selectedDateTime(), &docId)) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось оформить визит: " + DBManager::instance().lastError());
+        } else {
+            loadVisits();
+            if (m_clientsTable) loadClients();
+            if (m_branchReportsTable) loadBranches();
+            statusBar()->showMessage(QString("Визит №%1 успешно оформлен!").arg(docId), 3000);
+        }
+    }
+}
+
+void MainWindow::onDeleteVisit() {
+    int row = m_visitsTable->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, "Внимание", "Выберите запись визита для удаления.");
+        return;
+    }
+
+    int docId = m_visitsTable->item(row, 0)->text().toInt();
+
+    if (QMessageBox::question(this, "Подтверждение", QString("Удалить запись визита №%1?").arg(docId)) == QMessageBox::Yes) {
+        if (!DBManager::instance().deleteDocument(docId)) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось удалить запись: " + DBManager::instance().lastError());
+        } else {
+            loadVisits();
+            if (m_clientsTable) loadClients();
+            if (m_branchReportsTable) loadBranches();
+            statusBar()->showMessage("Запись визита удалена", 3000);
+        }
+    }
+}
+
+void MainWindow::onRefreshVisits() {
+    loadVisits();
+    statusBar()->showMessage("Журнал визитов обновлен", 2000);
+}
+
+void MainWindow::onFilterVisits() {
+    loadVisits();
+}
 
 void MainWindow::onEditClientPhone() {}
 void MainWindow::onChangeClientPassword() {}
@@ -702,5 +790,34 @@ void MainWindow::loadClients() {
         m_clientsTable->setItem(i, 5, new QTableWidgetItem(QString("%1 ₽").arg(stats[i].totalSpent, 0, 'f', 2)));
     }
 }
-void MainWindow::loadVisits() {}
+void MainWindow::loadVisits() {
+    if (!m_visitsTable) return;
+
+    QVector<Document> docs;
+    if (m_userRole == "Master" && m_employeeBranchId > 0) {
+        docs = DBManager::instance().getDocumentsByBranch(m_employeeBranchId);
+    } else {
+        int filterBranchId = 0;
+        if (m_visitBranchFilter) {
+            filterBranchId = m_visitBranchFilter->currentData().toInt();
+        }
+        if (filterBranchId > 0) {
+            docs = DBManager::instance().getDocumentsByBranch(filterBranchId);
+        } else {
+            docs = DBManager::instance().getAllDocuments();
+        }
+    }
+
+    m_visitsTable->setRowCount(docs.size());
+    for (int i = 0; i < docs.size(); ++i) {
+        m_visitsTable->setItem(i, 0, new QTableWidgetItem(QString::number(docs[i].idDocument)));
+        m_visitsTable->setItem(i, 1, new QTableWidgetItem(docs[i].serviceDate.toString("dd.MM.yyyy HH:mm")));
+        m_visitsTable->setItem(i, 2, new QTableWidgetItem(docs[i].branchName));
+        m_visitsTable->setItem(i, 3, new QTableWidgetItem(docs[i].employeeName));
+        m_visitsTable->setItem(i, 4, new QTableWidgetItem(docs[i].clientName));
+        m_visitsTable->setItem(i, 5, new QTableWidgetItem(docs[i].haircutName));
+        m_visitsTable->setItem(i, 6, new QTableWidgetItem(QString("%1%").arg(docs[i].discountRate, 0, 'f', 0)));
+        m_visitsTable->setItem(i, 7, new QTableWidgetItem(QString("%1 ₽").arg(docs[i].finalCost, 0, 'f', 2)));
+    }
+}
 void MainWindow::loadClientProfile() {}
