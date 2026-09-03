@@ -221,11 +221,86 @@ QWidget* MainWindow::createHaircutsTab() {
 
 QWidget* MainWindow::createUsersTab() {
     auto *tab = new QWidget(this);
+    auto *layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(10);
+
+    auto *btnLayout = new QHBoxLayout();
+    auto *addBtn = new QPushButton("Добавить пользователя", tab);
+    auto *pwdBtn = new QPushButton("Сменить пароль", tab);
+    auto *delBtn = new QPushButton("Удалить пользователя", tab);
+    auto *refreshBtn = new QPushButton("Обновить", tab);
+
+    addBtn->setStyleSheet("background-color: #3182ce; color: white; padding: 5px 12px;");
+    delBtn->setStyleSheet("background-color: #e53e3e; color: white; padding: 5px 12px;");
+
+    connect(addBtn, &QPushButton::clicked, this, &MainWindow::onAddUser);
+    connect(pwdBtn, &QPushButton::clicked, this, &MainWindow::onResetUserPassword);
+    connect(delBtn, &QPushButton::clicked, this, &MainWindow::onDeleteUser);
+    connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::onRefreshUsers);
+
+    btnLayout->addWidget(addBtn);
+    btnLayout->addWidget(pwdBtn);
+    btnLayout->addWidget(delBtn);
+    btnLayout->addStretch();
+    btnLayout->addWidget(refreshBtn);
+    layout->addLayout(btnLayout);
+
+    m_usersTable = new QTableWidget(tab);
+    m_usersTable->setColumnCount(3);
+    m_usersTable->setHorizontalHeaderLabels({"ID", "Логин", "Роль в системе"});
+    m_usersTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_usersTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_usersTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_usersTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(m_usersTable);
+
+    loadUsers();
     return tab;
 }
 
 QWidget* MainWindow::createClientsTab() {
     auto *tab = new QWidget(this);
+    auto *layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(10, 10, 10, 10);
+    layout->setSpacing(10);
+
+    auto *btnLayout = new QHBoxLayout();
+    auto *addBtn = new QPushButton("Добавить клиента", tab);
+    auto *editBtn = new QPushButton("Редактировать", tab);
+    auto *delBtn = new QPushButton("Удалить", tab);
+    auto *refreshBtn = new QPushButton("Обновить", tab);
+
+    addBtn->setStyleSheet("background-color: #3182ce; color: white; padding: 5px 12px;");
+    delBtn->setStyleSheet("background-color: #e53e3e; color: white; padding: 5px 12px;");
+
+    connect(addBtn, &QPushButton::clicked, this, &MainWindow::onAddClient);
+    connect(editBtn, &QPushButton::clicked, this, &MainWindow::onEditClient);
+    connect(delBtn, &QPushButton::clicked, this, &MainWindow::onDeleteClient);
+    connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::onRefreshClients);
+
+    btnLayout->addWidget(addBtn);
+    btnLayout->addWidget(editBtn);
+    if (m_userRole == "Admin") {
+        btnLayout->addWidget(delBtn);
+    }
+    btnLayout->addStretch();
+    btnLayout->addWidget(refreshBtn);
+    layout->addLayout(btnLayout);
+
+    auto *infoLabel = new QLabel("<b>Клиентская база и статистика программы лояльности (View: view_client_stats)</b>", tab);
+    layout->addWidget(infoLabel);
+
+    m_clientsTable = new QTableWidget(tab);
+    m_clientsTable->setColumnCount(6);
+    m_clientsTable->setHorizontalHeaderLabels({"ID", "ФИО клиента", "Телефон", "Всего визитов", "Статус клиента", "Потрачено (руб.)"});
+    m_clientsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_clientsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_clientsTable->setSelectionMode(QAbstractItemView::SingleSelection);
+    m_clientsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(m_clientsTable);
+
+    loadClients();
     return tab;
 }
 
@@ -429,15 +504,128 @@ void MainWindow::onRefreshHaircuts() {
     statusBar()->showMessage("Каталог стрижек обновлен", 2000);
 }
 
-void MainWindow::onAddUser() {}
-void MainWindow::onDeleteUser() {}
-void MainWindow::onResetUserPassword() {}
-void MainWindow::onRefreshUsers() {}
+void MainWindow::onAddUser() {
+    UserDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        int newUserId = 0;
+        if (!DBManager::instance().registerUser(dlg.login(), dlg.password(), dlg.roleName(), &newUserId)) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось создать пользователя: " + DBManager::instance().lastError());
+        } else {
+            loadUsers();
+            statusBar()->showMessage("Пользователь успешно создан", 3000);
+        }
+    }
+}
 
-void MainWindow::onAddClient() {}
-void MainWindow::onEditClient() {}
-void MainWindow::onDeleteClient() {}
-void MainWindow::onRefreshClients() {}
+void MainWindow::onDeleteUser() {
+    int row = m_usersTable->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, "Внимание", "Выберите пользователя для удаления.");
+        return;
+    }
+
+    int userId = m_usersTable->item(row, 0)->text().toInt();
+    QString login = m_usersTable->item(row, 1)->text();
+
+    if (userId == m_currentUser.idUser) {
+        QMessageBox::warning(this, "Предупреждение", "Нельзя удалить текущую учетную запись.");
+        return;
+    }
+
+    if (QMessageBox::question(this, "Подтверждение", "Удалить пользователя «" + login + "»?") == QMessageBox::Yes) {
+        if (!DBManager::instance().deleteUser(userId)) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось удалить пользователя: " + DBManager::instance().lastError());
+        } else {
+            loadUsers();
+            statusBar()->showMessage("Пользователь удален", 3000);
+        }
+    }
+}
+
+void MainWindow::onResetUserPassword() {
+    int row = m_usersTable->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, "Внимание", "Выберите пользователя для смены пароля.");
+        return;
+    }
+
+    int userId = m_usersTable->item(row, 0)->text().toInt();
+    QString login = m_usersTable->item(row, 1)->text();
+
+    PasswordChangeDialog dlg(this);
+    dlg.setWindowTitle("Смена пароля: " + login);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (!DBManager::instance().updateUserPassword(userId, dlg.newPassword())) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось сменить пароль: " + DBManager::instance().lastError());
+        } else {
+            statusBar()->showMessage("Пароль пользователя успешно изменен", 3000);
+        }
+    }
+}
+
+void MainWindow::onRefreshUsers() {
+    loadUsers();
+    statusBar()->showMessage("Список пользователей обновлен", 2000);
+}
+
+void MainWindow::onAddClient() {
+    ClientDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (!DBManager::instance().addClient(dlg.lastName(), dlg.firstName(), dlg.middleName(), dlg.phone())) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось добавить клиента: " + DBManager::instance().lastError());
+        } else {
+            loadClients();
+            statusBar()->showMessage("Клиент успешно зарегистрирован", 3000);
+        }
+    }
+}
+
+void MainWindow::onEditClient() {
+    int row = m_clientsTable->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, "Внимание", "Выберите клиента для редактирования.");
+        return;
+    }
+
+    int clientId = m_clientsTable->item(row, 0)->text().toInt();
+    auto clientOpt = DBManager::instance().getClientById(clientId);
+    if (!clientOpt.has_value()) return;
+
+    ClientDialog dlg(clientOpt.value(), this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (!DBManager::instance().updateClient(clientId, dlg.lastName(), dlg.firstName(), dlg.middleName(), dlg.phone())) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось обновить данные клиента: " + DBManager::instance().lastError());
+        } else {
+            loadClients();
+            statusBar()->showMessage("Данные клиента обновлены", 3000);
+        }
+    }
+}
+
+void MainWindow::onDeleteClient() {
+    int row = m_clientsTable->currentRow();
+    if (row < 0) {
+        QMessageBox::information(this, "Внимание", "Выберите клиента для удаления.");
+        return;
+    }
+
+    int clientId = m_clientsTable->item(row, 0)->text().toInt();
+    QString name = m_clientsTable->item(row, 1)->text();
+
+    if (QMessageBox::question(this, "Подтверждение", "Удалить клиента «" + name + "»?") == QMessageBox::Yes) {
+        if (!DBManager::instance().deleteClient(clientId)) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось удалить клиента: " + DBManager::instance().lastError());
+        } else {
+            loadClients();
+            statusBar()->showMessage("Клиент удален", 3000);
+        }
+    }
+}
+
+void MainWindow::onRefreshClients() {
+    loadClients();
+    statusBar()->showMessage("Список клиентов обновлен", 2000);
+}
 
 void MainWindow::onAddVisit() {}
 void MainWindow::onDeleteVisit() {}
@@ -486,7 +674,33 @@ void MainWindow::loadHaircuts() {
         onHaircutSelectionChanged();
     }
 }
-void MainWindow::loadUsers() {}
-void MainWindow::loadClients() {}
+void MainWindow::loadUsers() {
+    if (!m_usersTable) return;
+    auto users = DBManager::instance().getAllUsers();
+    m_usersTable->setRowCount(users.size());
+    for (int i = 0; i < users.size(); ++i) {
+        m_usersTable->setItem(i, 0, new QTableWidgetItem(QString::number(users[i].idUser)));
+        m_usersTable->setItem(i, 1, new QTableWidgetItem(users[i].login));
+        QStringList roleNames;
+        for (const auto &r : users[i].roles) {
+            roleNames << r.roleName;
+        }
+        m_usersTable->setItem(i, 2, new QTableWidgetItem(roleNames.join(", ")));
+    }
+}
+
+void MainWindow::loadClients() {
+    if (!m_clientsTable) return;
+    auto stats = DBManager::instance().getClientStats();
+    m_clientsTable->setRowCount(stats.size());
+    for (int i = 0; i < stats.size(); ++i) {
+        m_clientsTable->setItem(i, 0, new QTableWidgetItem(QString::number(stats[i].idClient)));
+        m_clientsTable->setItem(i, 1, new QTableWidgetItem(stats[i].clientName));
+        m_clientsTable->setItem(i, 2, new QTableWidgetItem(stats[i].phone));
+        m_clientsTable->setItem(i, 3, new QTableWidgetItem(QString::number(stats[i].totalVisits)));
+        m_clientsTable->setItem(i, 4, new QTableWidgetItem(stats[i].clientStatus));
+        m_clientsTable->setItem(i, 5, new QTableWidgetItem(QString("%1 ₽").arg(stats[i].totalSpent, 0, 'f', 2)));
+    }
+}
 void MainWindow::loadVisits() {}
 void MainWindow::loadClientProfile() {}
