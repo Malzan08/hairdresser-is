@@ -445,7 +445,11 @@ QWidget* MainWindow::createClientCabinetTab() {
 }
 
 void MainWindow::onLogoutClicked() {
-    emit logoutRequested();
+    if (QMessageBox::question(this, "Смена пользователя",
+                              "Вы действительно хотите выйти из учетной записи?",
+                              QMessageBox::Yes | QMessageBox::No) == QMessageBox::Yes) {
+        emit logoutRequested();
+    }
 }
 
 void MainWindow::onAddBranch() {
