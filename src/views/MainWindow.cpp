@@ -364,6 +364,83 @@ QWidget* MainWindow::createVisitsTab(bool isMasterView) {
 
 QWidget* MainWindow::createClientCabinetTab() {
     auto *tab = new QWidget(this);
+    auto *layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(15, 15, 15, 15);
+    layout->setSpacing(12);
+
+    auto *cardWidget = new QWidget(tab);
+    cardWidget->setStyleSheet("background-color: #f7fafc; border: 1px solid #e2e8f0; border-radius: 8px;");
+    auto *cardLayout = new QVBoxLayout(cardWidget);
+    cardLayout->setContentsMargins(15, 15, 15, 15);
+    cardLayout->setSpacing(8);
+
+    auto *cardTitle = new QLabel("<b>Личные данные и статус программы лояльности</b>", cardWidget);
+    cardTitle->setStyleSheet("font-size: 14px; color: #2d3748; border: none;");
+    cardLayout->addWidget(cardTitle);
+
+    auto *infoGrid = new QGridLayout();
+    infoGrid->setSpacing(10);
+
+    m_cabinetNameLabel = new QLabel(cardWidget);
+    m_cabinetNameLabel->setStyleSheet("border: none; font-size: 13px;");
+    infoGrid->addWidget(new QLabel("ФИО:", cardWidget), 0, 0);
+    infoGrid->addWidget(m_cabinetNameLabel, 0, 1);
+
+    m_cabinetPhoneLabel = new QLabel(cardWidget);
+    m_cabinetPhoneLabel->setStyleSheet("border: none; font-size: 13px;");
+    infoGrid->addWidget(new QLabel("Номер телефона:", cardWidget), 1, 0);
+    infoGrid->addWidget(m_cabinetPhoneLabel, 1, 1);
+
+    m_cabinetVisitsLabel = new QLabel(cardWidget);
+    m_cabinetVisitsLabel->setStyleSheet("border: none; font-size: 13px; font-weight: bold; color: #3182ce;");
+    infoGrid->addWidget(new QLabel("Всего визитов:", cardWidget), 0, 2);
+    infoGrid->addWidget(m_cabinetVisitsLabel, 0, 3);
+
+    m_cabinetDiscountLabel = new QLabel(cardWidget);
+    m_cabinetDiscountLabel->setStyleSheet("border: none; font-size: 13px; font-weight: bold;");
+    infoGrid->addWidget(new QLabel("Текущая скидка:", cardWidget), 1, 2);
+    infoGrid->addWidget(m_cabinetDiscountLabel, 1, 3);
+
+    m_cabinetSpentLabel = new QLabel(cardWidget);
+    m_cabinetSpentLabel->setStyleSheet("border: none; font-size: 13px; font-weight: bold; color: #276749;");
+    infoGrid->addWidget(new QLabel("Потрачено за все время:", cardWidget), 2, 2);
+    infoGrid->addWidget(m_cabinetSpentLabel, 2, 3);
+
+    cardLayout->addLayout(infoGrid);
+
+    auto *actionsLayout = new QHBoxLayout();
+    auto *editPhoneBtn = new QPushButton("Изменить телефон", cardWidget);
+    editPhoneBtn->setStyleSheet("background-color: #4a5568; color: white; padding: 4px 12px; border-radius: 4px;");
+    connect(editPhoneBtn, &QPushButton::clicked, this, &MainWindow::onEditClientPhone);
+    actionsLayout->addWidget(editPhoneBtn);
+
+    auto *changePwdBtn = new QPushButton("Сменить пароль", cardWidget);
+    changePwdBtn->setStyleSheet("background-color: #4a5568; color: white; padding: 4px 12px; border-radius: 4px;");
+    connect(changePwdBtn, &QPushButton::clicked, this, &MainWindow::onChangeClientPassword);
+    actionsLayout->addWidget(changePwdBtn);
+
+    actionsLayout->addStretch();
+
+    auto *refreshBtn = new QPushButton("Обновить данные", cardWidget);
+    connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::onRefreshClientProfile);
+    actionsLayout->addWidget(refreshBtn);
+
+    cardLayout->addLayout(actionsLayout);
+    layout->addWidget(cardWidget);
+
+    auto *historyTitle = new QLabel("<b>История моих стрижек и визитов</b>", tab);
+    historyTitle->setStyleSheet("font-size: 13px; color: #2d3748;");
+    layout->addWidget(historyTitle);
+
+    m_cabinetVisitsTable = new QTableWidget(tab);
+    m_cabinetVisitsTable->setColumnCount(6);
+    m_cabinetVisitsTable->setHorizontalHeaderLabels({"Дата и время", "Филиал", "Мастер", "Стрижка / Услуга", "Скидка", "Итоговая цена"});
+    m_cabinetVisitsTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    m_cabinetVisitsTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_cabinetVisitsTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    layout->addWidget(m_cabinetVisitsTable);
+
+    loadClientProfile();
     return tab;
 }
 
@@ -727,9 +804,64 @@ void MainWindow::onFilterVisits() {
     loadVisits();
 }
 
-void MainWindow::onEditClientPhone() {}
-void MainWindow::onChangeClientPassword() {}
-void MainWindow::onRefreshClientProfile() {}
+void MainWindow::onEditClientPhone() {
+    if (m_clientId <= 0) return;
+    auto clientOpt = DBManager::instance().getClientById(m_clientId);
+    if (!clientOpt.has_value()) return;
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("Изменение номера телефона");
+    dlg.setFixedWidth(360);
+    auto *l = new QVBoxLayout(&dlg);
+    l->setSpacing(12);
+
+    auto *edit = new QLineEdit(&dlg);
+    edit->setText(clientOpt->phone);
+    edit->setPlaceholderText("+7(999)000-00-00");
+    l->addWidget(new QLabel("Новый номер телефона:", &dlg));
+    l->addWidget(edit);
+
+    auto *hl = new QHBoxLayout();
+    auto *cBtn = new QPushButton("Отмена", &dlg);
+    auto *sBtn = new QPushButton("Сохранить", &dlg);
+    sBtn->setStyleSheet("background-color: #3182ce; color: white; font-weight: bold; padding: 6px 12px;");
+    connect(cBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    connect(sBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+    hl->addStretch();
+    hl->addWidget(cBtn);
+    hl->addWidget(sBtn);
+    l->addLayout(hl);
+
+    if (dlg.exec() == QDialog::Accepted) {
+        QString newPhone = edit->text().trimmed();
+        if (newPhone.isEmpty()) {
+            QMessageBox::warning(this, "Внимание", "Номер телефона не может быть пустым.");
+            return;
+        }
+        if (!DBManager::instance().updateClientPhone(m_clientId, newPhone)) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось обновить телефон: " + DBManager::instance().lastError());
+        } else {
+            loadClientProfile();
+            statusBar()->showMessage("Телефон успешно обновлен", 3000);
+        }
+    }
+}
+
+void MainWindow::onChangeClientPassword() {
+    PasswordChangeDialog dlg(this);
+    if (dlg.exec() == QDialog::Accepted) {
+        if (!DBManager::instance().updateUserPassword(m_currentUser.idUser, dlg.newPassword())) {
+            QMessageBox::critical(this, "Ошибка", "Не удалось сменить пароль: " + DBManager::instance().lastError());
+        } else {
+            statusBar()->showMessage("Пароль успешно изменен", 3000);
+        }
+    }
+}
+
+void MainWindow::onRefreshClientProfile() {
+    loadClientProfile();
+    statusBar()->showMessage("Данные профиля обновлены", 2000);
+}
 
 void MainWindow::loadBranches() {
     if (!m_branchesTable) return;
@@ -827,4 +959,49 @@ void MainWindow::loadVisits() {
         m_visitsTable->setItem(i, 7, new QTableWidgetItem(QString("%1 ₽").arg(docs[i].finalCost, 0, 'f', 2)));
     }
 }
-void MainWindow::loadClientProfile() {}
+void MainWindow::loadClientProfile() {
+    if (m_clientId <= 0) {
+        auto clientOpt = DBManager::instance().getClientByUserId(m_currentUser.idUser);
+        if (clientOpt.has_value()) {
+            m_clientId = clientOpt->idClient;
+        }
+    }
+
+    if (m_clientId <= 0) return;
+
+    auto clientOpt = DBManager::instance().getClientById(m_clientId);
+    if (!clientOpt.has_value()) return;
+
+    Client c = clientOpt.value();
+    if (m_cabinetNameLabel) m_cabinetNameLabel->setText(c.fullName());
+    if (m_cabinetPhoneLabel) m_cabinetPhoneLabel->setText(c.phone);
+
+    int visits = DBManager::instance().getClientVisitCount(m_clientId);
+    if (m_cabinetVisitsLabel) m_cabinetVisitsLabel->setText(QString("%1 визита(-ов)").arg(visits));
+
+    if (m_cabinetDiscountLabel) {
+        if (visits >= 5) {
+            m_cabinetDiscountLabel->setText("3% — Статус: Постоянный клиент");
+            m_cabinetDiscountLabel->setStyleSheet("color: #276749; font-weight: bold; border: none; font-size: 13px;");
+        } else {
+            m_cabinetDiscountLabel->setText(QString("0% (До получения скидки 3% осталось %1 визита(-ов))").arg(5 - visits));
+            m_cabinetDiscountLabel->setStyleSheet("color: #4a5568; font-weight: bold; border: none; font-size: 13px;");
+        }
+    }
+
+    double totalSpent = DBManager::instance().getClientTotalSpent(m_clientId);
+    if (m_cabinetSpentLabel) m_cabinetSpentLabel->setText(QString("%1 ₽").arg(totalSpent, 0, 'f', 2));
+
+    if (m_cabinetVisitsTable) {
+        auto docs = DBManager::instance().getDocumentsByClient(m_clientId);
+        m_cabinetVisitsTable->setRowCount(docs.size());
+        for (int i = 0; i < docs.size(); ++i) {
+            m_cabinetVisitsTable->setItem(i, 0, new QTableWidgetItem(docs[i].serviceDate.toString("dd.MM.yyyy HH:mm")));
+            m_cabinetVisitsTable->setItem(i, 1, new QTableWidgetItem(docs[i].branchName));
+            m_cabinetVisitsTable->setItem(i, 2, new QTableWidgetItem(docs[i].employeeName));
+            m_cabinetVisitsTable->setItem(i, 3, new QTableWidgetItem(docs[i].haircutName));
+            m_cabinetVisitsTable->setItem(i, 4, new QTableWidgetItem(QString("%1%").arg(docs[i].discountRate, 0, 'f', 0)));
+            m_cabinetVisitsTable->setItem(i, 5, new QTableWidgetItem(QString("%1 ₽").arg(docs[i].finalCost, 0, 'f', 2)));
+        }
+    }
+}
